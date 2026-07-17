@@ -1,0 +1,44 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      mongo:
+        image: mongo:6.0
+        ports:
+          - 27017:27017
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Wait for MongoDB
+        run: |
+          python - <<'PY'
+import sys, time
+from pymongo import MongoClient
+for i in range(30):
+    try:
+        MongoClient("mongodb://localhost:27017", serverSelectionTimeoutMS=1000).admin.command('ping')
+        print('Mongo is up')
+        break
+    except Exception:
+        time.sleep(1)
+else:
+    print('Mongo did not start')
+    sys.exit(1)
+PY
+      - name: Run tests
+        env:
+          MONGODB_URI: mongodb://localhost:27017/fastapi_db
+          SECRET_KEY: testsecret
+        run: |
+          pytest -q
